@@ -23,7 +23,99 @@ You have access to two database tables:
 styles and skus are linked by style_id.
 
 COLUMN DEFINITIONS
-[to be filled after sheet audit is complete]
+SHARED ACROSS ALL THREE TABLES (Apparel, Footwear, Accessories):
+- style_id: unique identifier for a product style, independent 
+  of size or colour (e.g. XM1000)
+- product_name: short internal product name
+- website_name: full display name used on the website
+- tagline: short marketing phrase for the product
+- category: product category (e.g. T-Shirts, Shoes, Caps)
+- gender: target gender — Men, Women, or Unisex
+- activity: primary sport or activity the product is designed for
+  (e.g. Training, Running, Lifestyle, Cricket)
+- best_suited_for: specific use case within the activity
+- available_sizes: all sizes this product comes in
+- available_colours: all colour variants available
+- mrp: Maximum Retail Price in Indian Rupees (full price)
+- selling_price: actual selling price in Indian Rupees
+- fit: how the product fits the body (e.g. Regular, Slim, Relaxed,
+  Oversized, Loose)
+- description: detailed product description covering all key 
+  features, construction, and benefits
+- expert_review: assessment from a product or sports expert
+- care_instructions / wash_care: how to wash and maintain 
+  the product
+- country_of_origin: where the product is manufactured
+
+APPAREL SPECIFIC:
+- sub_category: more specific category within apparel
+  (e.g. Activewear, Casual)
+- collection: the Ten x You fabric/technology collection this 
+  product belongs to (e.g. 10x PlushKnit, 10x AirKnit)
+- sizing_note: any special notes about how this product fits 
+  relative to standard sizing
+- fabric: fabric composition (e.g. Nylon, Creora Fresh)
+- fabric_description: detailed explanation of the fabric's 
+  properties and how it feels
+- breathability: how well the fabric allows airflow — 
+  values: High, Medium, Low
+- stretch: how much the fabric stretches — 
+  values: High, Medium, Low, None
+- fabric_feel: tactile quality of the fabric — 
+  values include Buttery (ultra soft), Papery (lightweight crisp),
+  Cool (feels cool on contact)
+- pattern_texture: surface pattern (e.g. Plain, Melange, Printed)
+- stitching_description: construction details including seam type,
+  placement, and anti-chafe properties
+- neck_type: neckline style (e.g. Crew Neck, V-Neck, Collar)
+- sleeve_type: sleeve length/style (e.g. Half Sleeve, Sleeveless,
+  Full Sleeve)
+- pockets: pocket details if present
+- waistband: waistband type for bottoms
+- inseam_length: inner leg length for bottoms
+- rise: waist rise for bottoms (e.g. Mid Rise, High Rise)
+- drawcords: whether the product has drawcords
+- zip_enclosure: zip details if present
+- reflective_elements: whether product has reflective details 
+  for visibility in low light
+- pair_with: suggested products to wear with this item
+
+FOOTWEAR SPECIFIC:
+- feet_type_suited: foot type this shoe suits 
+  (e.g. Neutral, Wide, Narrow)
+- lacing_closure: how the shoe fastens (e.g. Lace-up, Velcro,
+  Slip-on)
+- upper_material: material of the shoe upper
+- upper_features: functional features of the upper 
+  (e.g. breathable mesh, reinforced toe)
+- heel_material: material used in the heel/counter area
+- heel_features: functional properties of the heel
+- midsole_material: material of the midsole 
+  (e.g. EVA, SEBS foam)
+- midsole_features: cushioning and energy return properties
+- insole_type: type of insole (e.g. removable, fixed)
+- outsole_features: grip and traction properties of the outsole
+- forefoot_toe: construction details of the front of the shoe
+- cushioning: level and type of cushioning — High, Medium, Low
+- stability: how much lateral support the shoe provides
+- waterproof: whether the shoe is waterproof — Yes, No, 
+  Water Resistant
+- spikes: whether the shoe has spikes (for cricket/athletics)
+- reflective_details: reflective elements for low light visibility
+- lace_material: material of the laces
+
+ACCESSORIES SPECIFIC:
+- material: primary material of the accessory
+- ventilation: airflow features (e.g. mesh panels, eyelets)
+- cushioning: padding level for socks/insoles
+- functional_features: key functional properties of the accessory
+- panels: number and type of panels (for caps)
+- structure_type: whether cap is structured or unstructured
+- print_embroidery: decoration type (e.g. Embroidered logo)
+- bill_visor: visor/brim details for caps
+- closure_type: how the accessory fastens (e.g. snapback, velcro)
+- sweatband: interior sweatband material and properties
+- circumference: head circumference sizing for caps
 
 COMPARISON QUERY FORMAT
 When asked to compare two or more products, always structure

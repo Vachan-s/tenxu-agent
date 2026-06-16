@@ -4,7 +4,7 @@ from pathlib import Path
 
 import anthropic
 from dotenv import load_dotenv
-from agent.search import hybrid_search, get_multiple_products
+from agent.search import hybrid_search, get_multiple_products, get_all_products
 
 load_dotenv(Path(__file__).parent.parent / ".env")
 
@@ -41,24 +41,24 @@ def search_products(query: str, filters: dict = {}) -> str:
     Run hybrid_search then fetch and format full details for the top 5 results.
     """
     try:
-        results = hybrid_search(query=query, filters=filters)
+        results = hybrid_search(query=query, filters=filters, match_count=20)
     except Exception as exc:
         return f"Search error: {exc}"
 
     if not results:
         return "No products found matching your search criteria."
 
-    top5 = results[:5]
+    top_results = results[:13]
 
     # Build a quick lookup for similarity + table, keyed by style_id
     meta = {
         r["style_id"]: {"table": r["table"], "similarity": r.get("similarity")}
-        for r in top5
+        for r in top_results
     }
 
     try:
         products = get_multiple_products(
-            [{"style_id": r["style_id"], "table": r["table"]} for r in top5]
+            [{"style_id": r["style_id"], "table": r["table"]} for r in top_results]
         )
     except Exception as exc:
         return f"Error fetching product details: {exc}"
@@ -71,6 +71,24 @@ def search_products(query: str, filters: dict = {}) -> str:
         m = meta.get(product.get("style_id"), {})
         blocks.append(_format_product(product, table=m.get("table", ""), similarity=m.get("similarity")))
 
+    return "\n\n---\n\n".join(blocks)
+
+
+def get_all_in_category(table: str) -> str:
+    """Fetch and format every product from a specific category table."""
+    items = get_all_products(table)
+    if not items:
+        return "No products found."
+
+    try:
+        products = get_multiple_products(items)
+    except Exception as exc:
+        return f"Error fetching products: {exc}"
+
+    if not products:
+        return "No products found."
+
+    blocks = [_format_product(p, table=table) for p in products]
     return "\n\n---\n\n".join(blocks)
 
 
@@ -122,7 +140,9 @@ _TOOLS = [
         "name": "search_products",
         "description": (
             "Search for products using semantic search and structured filters. "
-            "Use this for any product query."
+            "Use this for specific or descriptive queries. For broad category "
+            "questions ('show me all footwear', 'what accessories do you have') "
+            "use get_all_in_category instead."
         ),
         "input_schema": {
             "type": "object",
@@ -145,6 +165,26 @@ _TOOLS = [
                 },
             },
             "required": ["query"],
+        },
+    },
+    {
+        "name": "get_all_in_category",
+        "description": (
+            "Get ALL products from a specific category. Use this when the user "
+            "asks broad questions like 'what accessories do you have', 'show me "
+            "all footwear', 'list your apparel'. Do not use search for these — "
+            "fetch everything directly."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "table": {
+                    "type": "string",
+                    "enum": ["apparel", "footwear", "accessories"],
+                    "description": "Which category to fetch",
+                },
+            },
+            "required": ["table"],
         },
     },
     {
@@ -175,9 +215,49 @@ def _dispatch_tool(name: str, tool_input: dict) -> str:
             query=tool_input["query"],
             filters=tool_input.get("filters", {}),
         )
+    if name == "get_all_in_category":
+        return get_all_in_category(table=tool_input["table"])
     if name == "get_product_details":
         return get_product_details(style_ids=tool_input["style_ids"])
     return f"Unknown tool: {name}"
+
+# ── Query rewriting ───────────────────────────────────────────────────────────
+
+_REWRITE_SYSTEM = (
+    "You are a search query optimizer for an athleisurewear brand's product "
+    "database. Rewrite the user's query into concise search terms that will "
+    "match product descriptions.\n\n"
+    "IMPORTANT RULES:\n"
+    "- If the query mentions specific product names, preserve them exactly as "
+    "stated. Do not add, replace or interpret product names.\n"
+    "- If the query is a comparison (contains 'compare', 'vs', 'difference "
+    "between', 'versus'), return the query unchanged.\n"
+    "- If the query is a direct product lookup (contains a style ID like "
+    "XM1000), return it unchanged.\n"
+    "- Only rewrite open-ended descriptive queries like 'good for sweating' "
+    "or 'breathable shoes for running'.\n"
+    "- Return only the rewritten query, nothing else."
+)
+
+
+def rewrite_query(user_query: str) -> str:
+    """
+    Rewrite a conversational query into tighter search terms via a fast
+    claude-haiku-4-5 call.  Falls back to the original query on any error.
+    """
+    try:
+        client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+        response = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=128,
+            system=_REWRITE_SYSTEM,
+            messages=[{"role": "user", "content": user_query}],
+        )
+        rewritten = response.content[0].text.strip()
+        return rewritten if rewritten else user_query
+    except Exception:
+        return user_query
+
 
 # ── Agent entry point ─────────────────────────────────────────────────────────
 
@@ -192,7 +272,11 @@ def stream_agent(user_query: str, chat_history: list[dict]):
     """
     client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
-    messages = list(chat_history) + [{"role": "user", "content": user_query}]
+    rewritten_query = rewrite_query(user_query)
+    print(f"Original:  {user_query}")
+    print(f"Rewritten: {rewritten_query}")
+
+    messages = list(chat_history) + [{"role": "user", "content": rewritten_query}]
 
     try:
         while True:

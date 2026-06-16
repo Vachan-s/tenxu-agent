@@ -64,34 +64,49 @@ for msg in st.session_state.messages:
 user_input = st.chat_input("Ask about a product, compare SKUs, check specs…")
 
 if user_input:
-    st.session_state.messages.append({"role": "user", "content": user_input})
+    st.session_state.messages.append(
+        {"role": "user", "content": user_input}
+    )
     with st.chat_message("user"):
         st.markdown(user_input)
 
     with st.chat_message("assistant"):
-        gen = stream_agent(user_input, st.session_state.messages[:-1])
-        sentinel = [None]
+        message_placeholder = st.empty()
+        full_response = ""
+        all_chunks = []
 
-        # Advance the generator past the tool-use phase under the spinner.
-        # The generator blocks here until the first text chunk is ready,
-        # so the spinner is visible for exactly the tool-use phase.
-        with st.spinner("Thinking…"):
-            first_chunk = next(gen, None)
+        gen = stream_agent(
+            user_input,
+            st.session_state.messages[:-1]
+        )
 
-        # Spinner exits; stream remaining chunks to the UI.
-        # Use a shift-by-one wrapper so the sentinel (last item = full response)
-        # is held back from display and captured for chat history instead.
-        def _display_gen():
-            if first_chunk is not None:
-                yield first_chunk
-            prev = None
-            for item in gen:
-                if prev is not None:
-                    yield prev
-                prev = item
-            sentinel[0] = prev  # last item is the full assembled response
+        # Phase 1: tool use — show spinner until first text chunk arrives
+        with st.spinner("Searching products..."):
+            for chunk in gen:
+                all_chunks.append(chunk)
+                # first chunk signals streaming has started
+                break
 
-        st.write_stream(_display_gen())
-        response = sentinel[0] or ""
+        # Phase 2: collect remaining chunks from generator
+        # Last item is the sentinel (full assembled response)
+        remaining = list(gen)
 
-    st.session_state.messages.append({"role": "assistant", "content": response})
+        if remaining:
+            display_chunks = all_chunks + remaining[:-1]
+            sentinel = remaining[-1]
+        else:
+            display_chunks = all_chunks
+            sentinel = "".join(all_chunks)
+
+        # Display chunks one by one with typing cursor
+        for chunk in display_chunks:
+            full_response += chunk
+            message_placeholder.markdown(full_response + "▌")
+
+        # Final display without cursor
+        message_placeholder.markdown(full_response)
+
+        st.session_state.messages.append({
+            "role": "assistant",
+            "content": sentinel if sentinel else full_response,
+        })

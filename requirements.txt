@@ -1,0 +1,8 @@
+anthropic
+supabase
+streamlit
+sentence-transformers
+pandas
+openpyxl
+python-dotenv
+numpy

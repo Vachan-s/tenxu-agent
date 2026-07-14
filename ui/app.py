@@ -19,14 +19,17 @@ def get_supabase():
     """Create the Supabase client once and cache it across reruns."""
     return get_supabase_client()
 
-get_model()
-get_supabase()
-
 st.set_page_config(
     page_title="Ten x You — Product Intelligence",
     page_icon="⚡",
     layout="centered",
 )
+
+with st.spinner("Starting up Ten x You Agent... this takes about 20-30 seconds on first load"):
+    get_model()
+    get_supabase()
+
+st.toast("Ready! Ask me anything about our products.", icon="⚡")
 
 # ── Sidebar ──────────────────────────────────────────────────────────────────
 

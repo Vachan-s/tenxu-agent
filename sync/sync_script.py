@@ -256,10 +256,11 @@ def main() -> None:
     # this file so the path is correct regardless of where the script is run from
     load_dotenv(Path(__file__).parent.parent / ".env")
     supabase_url = os.getenv("SUPABASE_URL")
-    supabase_key = os.getenv("SUPABASE_KEY")
+    # Use the service role key so the sync script can bypass RLS and write data
+    supabase_key = os.getenv("SUPABASE_SERVICE_KEY")
 
     if not supabase_url or not supabase_key:
-        print("ERROR: SUPABASE_URL and SUPABASE_KEY must be set in .env")
+        print("ERROR: SUPABASE_URL and SUPABASE_SERVICE_KEY must be set in .env")
         sys.exit(1)
 
     # Resolve Excel path relative to project root (one level above sync/)

@@ -11,6 +11,15 @@ import os
 load_dotenv(Path(__file__).parent.parent / ".env")
 
 
+def get_env_var(key: str):
+    """Read from st.secrets (Streamlit Cloud) with fallback to os.getenv (local)."""
+    try:
+        import streamlit as st
+        return st.secrets[key]
+    except Exception:
+        return os.getenv(key)
+
+
 @lru_cache(maxsize=1)
 def load_embedding_model():
     """Load embedding model once and cache it."""
@@ -32,8 +41,8 @@ def get_supabase_client() -> Client:
     Return a Supabase client, creating it only once per process via lru_cache.
     Credentials are read from .env which is loaded at module level.
     """
-    url = os.getenv("SUPABASE_URL")
-    key = os.getenv("SUPABASE_KEY")
+    url = get_env_var("SUPABASE_URL")
+    key = get_env_var("SUPABASE_KEY")
     if not url or not key:
         raise EnvironmentError(
             "SUPABASE_URL and SUPABASE_KEY must be set in .env"
@@ -205,7 +214,7 @@ def rerank_results(query: str, results: list) -> list:
     formatted_products = "\n\n".join(product_blocks)
 
     try:
-        client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+        client = anthropic.Anthropic(api_key=get_env_var("ANTHROPIC_API_KEY"))
         response = client.messages.create(
             model="claude-haiku-3-5-20241022",
             max_tokens=256,

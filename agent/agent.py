@@ -4,9 +4,18 @@ from pathlib import Path
 
 import anthropic
 from dotenv import load_dotenv
-from agent.search import hybrid_search, get_multiple_products, get_all_products
+from agent.search import hybrid_search, get_multiple_products, get_all_products, get_supabase_client
 
 load_dotenv(Path(__file__).parent.parent / ".env")
+
+
+def get_env_var(key: str):
+    """Read from st.secrets (Streamlit Cloud) with fallback to os.getenv (local)."""
+    try:
+        import streamlit as st
+        return st.secrets[key]
+    except Exception:
+        return os.getenv(key)
 
 # ── System prompt ─────────────────────────────────────────────────────────────
 
@@ -221,6 +230,21 @@ def _dispatch_tool(name: str, tool_input: dict) -> str:
         return get_product_details(style_ids=tool_input["style_ids"])
     return f"Unknown tool: {name}"
 
+# ── Logging ───────────────────────────────────────────────────────────────────
+
+def log_query(user_query: str, success: bool, error_message: str | None = None) -> None:
+    """Insert a row into agent_logs. Never raises — logging must not crash the agent."""
+    try:
+        client = get_supabase_client()
+        client.table("agent_logs").insert({
+            "user_query":    user_query,
+            "success":       success,
+            "error_message": error_message,
+        }).execute()
+    except Exception as exc:
+        print(f"log_query: failed to write log: {exc}")
+
+
 # ── Query rewriting ───────────────────────────────────────────────────────────
 
 _REWRITE_SYSTEM = (
@@ -246,7 +270,7 @@ def rewrite_query(user_query: str) -> str:
     claude-haiku-4-5 call.  Falls back to the original query on any error.
     """
     try:
-        client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+        client = anthropic.Anthropic(api_key=get_env_var("ANTHROPIC_API_KEY"))
         response = client.messages.create(
             model="claude-haiku-4-5-20251001",
             max_tokens=128,
@@ -270,7 +294,7 @@ def stream_agent(user_query: str, chat_history: list[dict]):
     The very last yielded value is the complete assembled response string, so
     callers that don't use st.write_stream() can still capture the full text.
     """
-    client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+    client = anthropic.Anthropic(api_key=get_env_var("ANTHROPIC_API_KEY"))
 
     rewritten_query = rewrite_query(user_query)
     print(f"Original:  {user_query}")
@@ -285,7 +309,11 @@ def stream_agent(user_query: str, chat_history: list[dict]):
             with client.messages.stream(
                 model="claude-sonnet-4-6",
                 max_tokens=4096,
-                system=_SYSTEM_PROMPT,
+                system=[{
+                    "type": "text",
+                    "text": _SYSTEM_PROMPT,
+                    "cache_control": {"type": "ephemeral"},
+                }],
                 tools=_TOOLS,
                 messages=messages,
             ) as stream:
@@ -301,6 +329,7 @@ def stream_agent(user_query: str, chat_history: list[dict]):
 
             if final_message.stop_reason == "end_turn":
                 # Final response: yield each chunk, then yield the complete text
+                log_query(user_query, True)
                 for chunk in text_chunks:
                     yield chunk
                 yield "".join(text_chunks)  # sentinel — full response for history
@@ -327,10 +356,12 @@ def stream_agent(user_query: str, chat_history: list[dict]):
             return
 
     except anthropic.APIError as e:
+        log_query(user_query, False, str(e))
         error_msg = f"API error: {e}"
         yield error_msg
         yield error_msg
     except Exception as e:
+        log_query(user_query, False, str(e))
         error_msg = f"Unexpected error: {e}"
         yield error_msg
         yield error_msg
